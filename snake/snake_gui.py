@@ -27,6 +27,8 @@ class SnakeGameGUI:
         self.running = True
         self.current_action = Action.NONE
 
+        self.loop_id = None
+
         # Bind input to keypress handler
         self.window.bind("<KeyPress>", self.on_key_press)
 
@@ -39,8 +41,31 @@ class SnakeGameGUI:
 
         self.window.mainloop()
 
+
+    def restart_game(self):
+        if self.loop_id:
+            self.window.after_cancel(self.loop_id)
+            self.loop_id = None
+
+        self.input_queue.queue.clear()
+        self.canvas.delete("all")
+        self.running = True
+        self.current_action = Action.NONE
+        self.game.init_game()
+        self.draw_game()
+        self.game_loop()
+
+
     def on_key_press(self, event):
         key = event.keysym.lower()
+
+        if key == 'r':
+            self.restart_game()
+            return
+        elif key == 'q':
+            self.window.quit()
+            return
+
         action = Action.NONE
         if key in ['w', 'up']:
             action = Action.UP
@@ -92,11 +117,16 @@ class SnakeGameGUI:
             response = self.game.step(action)
             if response == GameResponse.LOSE:
                 self.running = False
-                self.canvas.create_text(self.width // 2, self.height // 2, text="Game Over",
-                                        fill="white", font=("Arial", 24))
+                self.canvas.create_text(
+                    self.width // 2,
+                    self.height // 2,
+                    text="Game Over",
+                    fill="white",
+                    font=("Arial", 24)
+                )
             else:
                 self.draw_game()
-                self.window.after(150, self.game_loop)
+                self.loop_id = self.window.after(150, self.game_loop)
 
 
 if __name__ == '__main__':
