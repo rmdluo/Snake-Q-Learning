@@ -9,12 +9,15 @@ class Action(Enum):
     UP = 2
     DOWN = 3
 
-action_opposite = {
-    Action.LEFT: Action.RIGHT,
-    Action.RIGHT: Action.LEFT,
-    Action.UP: Action.DOWN,
-    Action.DOWN: Action.UP,
-}
+    @staticmethod
+    def get_opposite(action):
+        action_opposite = {
+            Action.LEFT: Action.RIGHT,
+            Action.RIGHT: Action.LEFT,
+            Action.UP: Action.DOWN,
+            Action.DOWN: Action.UP,
+        }
+        return action_opposite[action]
 
 class GameResponse(Enum):
     LOSE = -1
@@ -133,7 +136,7 @@ class Snake:
         if action == Action.NONE and self.last_action == Action.NONE:
             return GameResponse.NONE
 
-        if action == Action.NONE or (len(self.snake) > 1 and action_opposite[action] == self.last_action):
+        if action == Action.NONE or (len(self.snake) > 1 and Action.get_opposite(action) == self.last_action):
             action = self.last_action
         self.last_action = action
 
