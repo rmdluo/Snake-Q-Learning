@@ -12,6 +12,7 @@ class Action(Enum):
     @staticmethod
     def get_opposite(action):
         action_opposite = {
+            Action.NONE: Action.NONE,
             Action.LEFT: Action.RIGHT,
             Action.RIGHT: Action.LEFT,
             Action.UP: Action.DOWN,
@@ -80,6 +81,9 @@ class Snake:
     
     def set_apple(self, x, y):
         self.apple = (x, y)
+
+    def get_last_action(self):
+        return self.last_action
 
     def is_losing(self, action: Action):
         snake_head_x, snake_head_y = self.get_snake_head()
