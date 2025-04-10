@@ -16,20 +16,7 @@ class SnakeEnv:
         return self.get_state()
 
     def get_state(self):
-        return [
-            int(self.game.is_losing(Action.LEFT)), # does going left lose
-            int(self.game.is_losing(Action.RIGHT)), # does going right lose
-            int(self.game.is_losing(Action.UP)), # does going up lose
-            int(self.game.is_losing(Action.DOWN)), # does going down lose
-            int(self.game.get_last_action() == Action.LEFT), # is the snake going left
-            int(self.game.get_last_action() == Action.RIGHT), # is the snake going right
-            int(self.game.get_last_action() == Action.UP), # is the snake going up
-            int(self.game.get_last_action() == Action.DOWN), # is the snake going down
-            int(self.game.get_snake_head()[0] > self.game.get_apple()[0]), # is the apple to the left of the snake
-            int(self.game.get_snake_head()[0] < self.game.get_apple()[0]), # is the apple to the right of the snake
-            int(self.game.get_snake_head()[1] > self.game.get_apple()[1]), # is the apple above the snake
-            int(self.game.get_snake_head()[1] < self.game.get_apple()[1]), # is the apple below the snake
-        ]
+        return self.game.get_board()
 
     def step(self, action):
         game_response = self.game.step(action)

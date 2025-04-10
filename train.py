@@ -1,5 +1,8 @@
+from collections import deque
 import math
+import os
 import random
+import shutil
 import torch
 from replay_memory import ReplayMemory, Transition
 from snake_env import SnakeEnv
@@ -7,29 +10,35 @@ from DQN import DQN
 
 # Config
 config = {
-    'episodes': 5000,
+    'episodes': 10000,
     'max_steps': 2000,
     'lr': 1e-4,
     'memory_capacity': 100000,
     'memory_prefill_percent': 0.5,
     'action_epsilon_start': 0.95,
-    'action_epsilon_end': 0.00,
-    'action_epsilon_decay': 100,
+    'action_epsilon_end': 0.01,
+    'action_epsilon_decay': 500,
     'soft_update_tau': 0.005,
     'action_discount_factor': 0.99,
-    'batch_size': 1024
+    'state_history_size': 4,
+    'batch_size': 64,
+    'logging_folder': 'logs'
 }
+if os.path.exists(config['logging_folder']):
+    shutil.rmtree(config['logging_folder'])
+os.makedirs(config['logging_folder'])
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Initialize the environment
 env = SnakeEnv()
 initial_state = env.reset()
-state_size = len(initial_state)
+state_size_height = len(initial_state)
+state_size_width = len(initial_state[0])
 number_of_actions = len(env.get_actions())
 
 # Initialize models
-policy_network = DQN(state_size, number_of_actions).to(device)
-target_network = DQN(state_size, number_of_actions).to(device)
+policy_network = DQN(config['state_history_size'], state_size_width, state_size_height, number_of_actions).to(device)
+target_network = DQN(config['state_history_size'], state_size_width, state_size_height, number_of_actions).to(device)
 target_network.load_state_dict(policy_network.state_dict()) # do this to make sure nets are exact replicas
 
 # Set up each model's action mapping
@@ -49,6 +58,7 @@ replay_memory = ReplayMemory(config['memory_capacity'])
 # Prefill the replay memory
 state = initial_state
 last_action = env.get_dummy_action()
+state_history = deque([state for _ in range(config['state_history_size'])], config['state_history_size'])
 while replay_memory.get_percent_full() < config['memory_prefill_percent']:
     # sample a random action
     action = env.sample_action_with_checks(last_action)
@@ -56,16 +66,19 @@ while replay_memory.get_percent_full() < config['memory_prefill_percent']:
     # get the results of using the action
     next_state, reward, terminated = env.step(action)
 
-    # store it in the memory buffer
-    replay_memory.push(
-        torch.tensor([state], device=device, dtype=torch.float32),
-        torch.tensor([policy_network.get_action_mapping()[action]], device=device),
-        torch.tensor([reward], device=device, dtype=torch.float32),
-        torch.tensor([next_state], device=device, dtype=torch.float32)
-    )
-
     # move the next_state into state
     state = next_state
+    current_state_history = list(state_history)
+    state_history.append(state)
+    next_state_history = list(state_history)
+
+    # store the result in the replay memory
+    replay_memory.push(
+        torch.tensor([current_state_history], device=device, dtype=torch.float32),
+        torch.tensor([policy_network.get_action_mapping()[action]], device=device),
+        torch.tensor([reward], device=device, dtype=torch.float32),
+        torch.tensor([next_state_history], device=device, dtype=torch.float32)
+    )
 
     # reset the environment if the state is terminal
     if terminated:
@@ -113,32 +126,41 @@ for i in range(config['episodes']):
     state = env.reset()
     last_action = env.get_dummy_action()
     culmulated_reward = 0
-
+    state_history = deque([state for _ in range(config['state_history_size'])], config['state_history_size'])
     action_epsilon = config['action_epsilon_end'] + (config['action_epsilon_start'] - config['action_epsilon_end']) * math.exp(-1. * i / config['action_epsilon_decay'])
+
+    # open logging file
+    f = open(os.path.join(config['logging_folder'], f'{i}.txt'), mode='w')
+    f.write(str(env) + "\n")
 
     # step until the state is terminal or reaches the max steps
     for _ in range(config['max_steps']):
         # choose an epsilon action
+        random_selection = False
         if random.random() < action_epsilon:
+            random_selection = True
             action = env.sample_action_with_checks(last_action)
         else:
             with torch.no_grad():
-                action = policy_network.get_action_mapping()[int(policy_network.get_action(torch.tensor([state], device=device, dtype=torch.float32)))]
+                action = policy_network.get_action_mapping()[int(policy_network.get_action(torch.tensor([state_history], device=device, dtype=torch.float32)))]
 
         # step the environment with that action
         next_state, reward, terminated = env.step(action)
         culmulated_reward += reward
 
-        # store the result in the replay memory
-        replay_memory.push(
-            torch.tensor([state], device=device, dtype=torch.float32),
-            torch.tensor([policy_network.get_action_mapping()[action]], device=device),
-            torch.tensor([reward], device=device, dtype=torch.float32),
-            torch.tensor([next_state], device=device, dtype=torch.float32)
-        )
-
         # update state
         state = next_state
+        current_state_history = list(state_history)
+        state_history.append(state)
+        next_state_history = list(state_history)
+
+        # store the result in the replay memory
+        replay_memory.push(
+            torch.tensor([current_state_history], device=device, dtype=torch.float32),
+            torch.tensor([policy_network.get_action_mapping()[action]], device=device),
+            torch.tensor([reward], device=device, dtype=torch.float32),
+            torch.tensor([next_state_history], device=device, dtype=torch.float32)
+        )
 
         # call one optimize step
         optimize(policy_network, target_network, optimizer, criterion, replay_memory, config['batch_size'])
@@ -153,7 +175,15 @@ for i in range(config['episodes']):
         # increment the step count
         step_count += 1
 
+        # add to logs
+        f.write("-------------------------------\n")
+        if random_selection:
+            f.write("RANDOM ")
+        f.write(action.name + "\n")
+        f.write(str(env) + "\n")
+
         # break if the resulting state was terminal
         if terminated:
-            print(action_epsilon, step_count, culmulated_reward)
+            f.close()
+            print(i, action_epsilon, step_count, culmulated_reward)
             break

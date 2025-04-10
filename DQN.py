@@ -5,9 +5,24 @@ from torch.nn import functional as F
 
 class DQN(nn.Module):
 
-    def __init__(self, n_states, n_actions):
+    def __init__(self, n_channels, board_height, board_width, n_actions):
         super(DQN, self).__init__()
-        self.layer1 = nn.Linear(n_states, 128)
+
+        self.backbone = nn.Sequential(
+            nn.Conv2d(n_channels, 16, 5, padding=2),
+            nn.ReLU(),
+            nn.Conv2d(16, 16, 3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(16, 32, 3, padding=1),
+            nn.ReLU(),
+        )
+
+        with torch.no_grad():
+            dummy_input = torch.zeros(1, 4, board_height, board_width)
+            conv_out = self.backbone(dummy_input)
+            self.flattened_size = conv_out.view(1, -1).size(1)
+
+        self.layer1 = nn.Linear(self.flattened_size, 128)
         self.layer2 = nn.Linear(128, 128)
         self.layer3 = nn.Linear(128, n_actions)
 
@@ -16,7 +31,8 @@ class DQN(nn.Module):
     # Called with either one element to determine next action, or a batch
     # during optimization. Returns tensor([[left0exp,right0exp]...]).
     def forward(self, x):
-        x = F.relu(self.layer1(x))
+        x = self.backbone(x)
+        x = F.relu(self.layer1(x.flatten(1)))
         x = F.relu(self.layer2(x))
         return self.layer3(x)
     

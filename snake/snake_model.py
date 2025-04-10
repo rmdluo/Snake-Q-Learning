@@ -84,6 +84,21 @@ class Snake:
 
     def get_last_action(self):
         return self.last_action
+    
+    def get_board(self):
+        board = [[0] * self.width for _ in range(self.height)]
+        snake_set = set(self.snake)
+        snake_head = self.get_snake_head()
+
+        for y in range(self.height):
+            for x in range(self.width):
+                if (x, y) == snake_head:
+                    board[y][x] = 2
+                elif (x, y) == self.apple:
+                    board[y][x] = 3
+                elif (x, y) in snake_set:
+                    board[y][x] = 1
+        return board
 
     def is_losing(self, action: Action):
         snake_head_x, snake_head_y = self.get_snake_head()
