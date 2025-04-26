@@ -21,7 +21,7 @@ config = {
     'action_epsilon_decay': 1000,
     'soft_update_tau': 0.005,
     'action_discount_factor': 0.99,
-    'state_history_size': 4,
+    'state_history_size': 1,
     'batch_size': 64,
     'logging_folder': 'logs'
 }
@@ -142,7 +142,7 @@ for i in range(config['episodes']):
         random_selection = False
         if random.random() < action_epsilon:
             random_selection = True
-            action = env.sample_action_with_checks(last_action)
+            action = env.sample_action_no_die_no_opposite(last_action)
         else:
             with torch.no_grad():
                 action_rankings = policy_network.get_action_rankings(torch.tensor([state_history], device=device, dtype=torch.float32))
