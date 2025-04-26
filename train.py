@@ -4,6 +4,7 @@ import os
 import random
 import shutil
 import torch
+import numpy as np
 from replay_memory import ReplayMemory, Transition
 from snake_env import SnakeEnv
 from DQN import DQN
@@ -13,11 +14,11 @@ config = {
     'episodes': 10000,
     'max_steps': 2000,
     'lr': 1e-4,
-    'memory_capacity': 100000,
-    'memory_prefill_percent': 0.5,
+    'memory_capacity': 1000000,
+    'memory_prefill_percent': 0.10,
     'action_epsilon_start': 0.95,
-    'action_epsilon_end': 0.01,
-    'action_epsilon_decay': 500,
+    'action_epsilon_end': 0.05,
+    'action_epsilon_decay': 1000,
     'soft_update_tau': 0.005,
     'action_discount_factor': 0.99,
     'state_history_size': 4,
@@ -51,6 +52,7 @@ target_network.set_action_mapping(action_mapping)
 # Initialize optimizer and loss function
 optimizer = torch.optim.AdamW(policy_network.parameters(), lr=config['lr'], amsgrad=True)
 criterion = torch.nn.SmoothL1Loss() # L2 above 1, L1 below 1
+lr_schedule = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, config['episodes'], 1e-5)
 
 # Initialize replay memory object
 replay_memory = ReplayMemory(config['memory_capacity'])
@@ -61,7 +63,7 @@ last_action = env.get_dummy_action()
 state_history = deque([state for _ in range(config['state_history_size'])], config['state_history_size'])
 while replay_memory.get_percent_full() < config['memory_prefill_percent']:
     # sample a random action
-    action = env.sample_action_with_checks(last_action)
+    action = env.sample_action_no_die_no_opposite(last_action)
 
     # get the results of using the action
     next_state, reward, terminated = env.step(action)
@@ -74,10 +76,10 @@ while replay_memory.get_percent_full() < config['memory_prefill_percent']:
 
     # store the result in the replay memory
     replay_memory.push(
-        torch.tensor([current_state_history], device=device, dtype=torch.float32),
-        torch.tensor([policy_network.get_action_mapping()[action]], device=device),
-        torch.tensor([reward], device=device, dtype=torch.float32),
-        torch.tensor([next_state_history], device=device, dtype=torch.float32)
+        np.array(current_state_history, dtype=np.uint8),
+        policy_network.get_action_mapping()[action],
+        reward,
+        np.array(next_state_history, dtype=np.uint8)
     )
 
     # reset the environment if the state is terminal
@@ -94,14 +96,15 @@ def optimize(policy_network, target_network, optimizer, criterion, replay_memory
     # to Transition of batch-arrays.
     batch = Transition(*zip(*transitions))
 
-    # process using the policy network
-    non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
-                                          batch.next_state)), device=device, dtype=torch.bool)
-    non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])
-    state_batch = torch.cat(batch.state)
-    action_batch = torch.cat(batch.action)
-    reward_batch = torch.cat(batch.reward)
+    # Convert to tensors
+    state_batch = torch.tensor(np.array(batch.state), device=device, dtype=torch.float32)
+    action_batch = torch.tensor(batch.action, device=device)
+    reward_batch = torch.tensor(batch.reward, device=device, dtype=torch.float32)
+    next_state_batch = torch.tensor(np.array(batch.next_state), device=device, dtype=torch.float32)
 
+    # process using the policy network
+    non_final_mask = torch.ones(batch_size, device=device, dtype=torch.bool)
+    non_final_next_states = next_state_batch
     state_action_values = policy_network(state_batch).gather(1, action_batch.unsqueeze(1))
 
     next_state_values = torch.zeros(batch_size, device=device)
@@ -142,7 +145,14 @@ for i in range(config['episodes']):
             action = env.sample_action_with_checks(last_action)
         else:
             with torch.no_grad():
-                action = policy_network.get_action_mapping()[int(policy_network.get_action(torch.tensor([state_history], device=device, dtype=torch.float32)))]
+                action_rankings = policy_network.get_action_rankings(torch.tensor([state_history], device=device, dtype=torch.float32))
+                action_rankings = action_rankings.squeeze()
+                # action = policy_network.get_action_mapping()[int(policy_network.get_action(torch.tensor([state_history], device=device, dtype=torch.float32)))]
+                for j in range(len(action_rankings)):
+                    action = policy_network.get_action_mapping()[int(action_rankings[j])]
+                    if env.check_action(action, last_action):
+                        break
+        last_action = action
 
         # step the environment with that action
         next_state, reward, terminated = env.step(action)
@@ -156,10 +166,10 @@ for i in range(config['episodes']):
 
         # store the result in the replay memory
         replay_memory.push(
-            torch.tensor([current_state_history], device=device, dtype=torch.float32),
-            torch.tensor([policy_network.get_action_mapping()[action]], device=device),
-            torch.tensor([reward], device=device, dtype=torch.float32),
-            torch.tensor([next_state_history], device=device, dtype=torch.float32)
+            np.array(current_state_history, dtype=np.uint8),
+            policy_network.get_action_mapping()[action],
+            reward,
+            np.array(next_state_history, dtype=np.uint8)
         )
 
         # call one optimize step
@@ -185,5 +195,6 @@ for i in range(config['episodes']):
         # break if the resulting state was terminal
         if terminated:
             f.close()
-            print(i, action_epsilon, step_count, culmulated_reward)
+            print(i, action_epsilon, step_count, culmulated_reward, lr_schedule.get_last_lr())
+            lr_schedule.step()
             break

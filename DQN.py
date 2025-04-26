@@ -9,22 +9,24 @@ class DQN(nn.Module):
         super(DQN, self).__init__()
 
         self.backbone = nn.Sequential(
-            nn.Conv2d(n_channels, 16, 5, padding=2),
+            nn.Conv2d(n_channels, 64, 5, padding=2),
             nn.ReLU(),
-            nn.Conv2d(16, 16, 3, padding=1),
+            nn.Conv2d(64, 128, 3, padding=1),
             nn.ReLU(),
-            nn.Conv2d(16, 32, 3, padding=1),
+            nn.Conv2d(128, 256, 3, padding=1, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(256, 256, 3, padding=1),
             nn.ReLU(),
         )
 
         with torch.no_grad():
-            dummy_input = torch.zeros(1, 4, board_height, board_width)
+            dummy_input = torch.zeros(1, n_channels, board_height, board_width)
             conv_out = self.backbone(dummy_input)
             self.flattened_size = conv_out.view(1, -1).size(1)
 
         self.layer1 = nn.Linear(self.flattened_size, 128)
-        self.layer2 = nn.Linear(128, 128)
-        self.layer3 = nn.Linear(128, n_actions)
+        self.layer2 = nn.Linear(128, 64)
+        self.layer3 = nn.Linear(64, n_actions)
 
         self.action_mapping = {}
 
@@ -38,6 +40,9 @@ class DQN(nn.Module):
     
     def get_action(self, x):
         return torch.argmax(self.forward(x), dim=1)
+    
+    def get_action_rankings(self, x):
+        return torch.argsort(self.forward(x), dim=1, descending=True)
 
     def set_action_mapping(self, action_mapping):
         self.action_mapping = action_mapping

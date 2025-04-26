@@ -45,11 +45,28 @@ class SnakeEnv:
     def sample_action(self):
         return random.sample(self.action_space, 1)[0]
     
-    def sample_action_with_checks(self, last_action):
-        action = random.sample(self.action_space, 1)[0]
-        while action == Action.get_opposite(last_action):
-            action = random.sample(self.action_space, 1)[0]
-        return action
+    def sample_action_no_opposite(self, last_action):
+        valid_actions = [
+            action for action in self.action_space if not (action == Action.get_opposite(last_action))
+        ]
+
+        if len(valid_actions) == 0:
+            return random.sample(self.action_space, 1)[0]
+        
+        return random.sample(valid_actions, 1)[0]
+    
+    def sample_action_no_die_no_opposite(self, last_action):
+        valid_actions = [
+            action for action in self.action_space if not (self.game.is_losing(action) or action == Action.get_opposite(last_action))
+        ]
+
+        if len(valid_actions) == 0:
+            return random.sample(self.action_space, 1)[0]
+        
+        return random.sample(valid_actions, 1)[0]
+    
+    def check_action(self, action, last_action):
+        return action != Action.get_opposite(last_action)
     
     def __str__(self):
         return self.game.__str__()
