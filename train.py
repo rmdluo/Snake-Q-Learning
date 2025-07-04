@@ -21,13 +21,17 @@ run_save_path = os.path.join(config['logging_folder'], config['test_name'], 'run
 weights_save_path = os.path.join(config['logging_folder'], config['test_name'], "weights")
 os.makedirs(run_save_path, exist_ok=True)
 os.makedirs(weights_save_path, exist_ok=True)
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+print("-" * 60)
 print("Using the following configuration:")
 print(config)
+print("-" * 60)
 print(f"Saving run logs to: {run_save_path}")
 print(f"Saving model weights to: {weights_save_path}")
-
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+print("-" * 60)
 print(f"Using device: {device}")
+print("-" * 60)
 
 # Initialize the environment
 env = SnakeEnv()
