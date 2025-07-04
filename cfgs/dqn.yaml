@@ -1,0 +1,15 @@
+type: dqn
+test_name: dqn
+episodes: 10
+max_steps: 2000
+lr: 0.0001
+memory_capacity: 1000000
+memory_prefill_percent: 0.10
+action_epsilon_start: 0.95
+action_epsilon_end: 0.05
+action_epsilon_decay: 1000
+soft_update_tau: 0.005
+action_discount_factor: 0.99
+state_history_size: 1
+batch_size: 64
+logging_folder: logs

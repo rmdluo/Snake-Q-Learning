@@ -10,25 +10,24 @@ from snake_env import SnakeEnv
 from DQN import DQN
 
 # Config
-config = {
-    'episodes': 10000,
-    'max_steps': 2000,
-    'lr': 1e-4,
-    'memory_capacity': 1000000,
-    'memory_prefill_percent': 0.10,
-    'action_epsilon_start': 0.95,
-    'action_epsilon_end': 0.05,
-    'action_epsilon_decay': 1000,
-    'soft_update_tau': 0.005,
-    'action_discount_factor': 0.99,
-    'state_history_size': 1,
-    'batch_size': 64,
-    'logging_folder': 'logs'
-}
-if os.path.exists(config['logging_folder']):
-    shutil.rmtree(config['logging_folder'])
-os.makedirs(config['logging_folder'])
+import yaml
+with open("cfgs/dqn.yaml", "r") as file:
+    config = yaml.safe_load(file)
+
+# Logging setup
+if os.path.exists(os.path.join(config['logging_folder'], config['test_name'])):
+    shutil.rmtree(os.path.join(config['logging_folder'], config['test_name']))
+run_save_path = os.path.join(config['logging_folder'], config['test_name'], 'runs')
+weights_save_path = os.path.join(config['logging_folder'], config['test_name'], "weights")
+os.makedirs(run_save_path, exist_ok=True)
+os.makedirs(weights_save_path, exist_ok=True)
+print("Using the following configuration:")
+print(config)
+print(f"Saving run logs to: {run_save_path}")
+print(f"Saving model weights to: {weights_save_path}")
+
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+print(f"Using device: {device}")
 
 # Initialize the environment
 env = SnakeEnv()
@@ -133,7 +132,7 @@ for i in range(config['episodes']):
     action_epsilon = config['action_epsilon_end'] + (config['action_epsilon_start'] - config['action_epsilon_end']) * math.exp(-1. * i / config['action_epsilon_decay'])
 
     # open logging file
-    f = open(os.path.join(config['logging_folder'], f'{i}.txt'), mode='w')
+    f = open(os.path.join(run_save_path, f'{i}.txt'), mode='w')
     f.write(str(env) + "\n")
 
     # step until the state is terminal or reaches the max steps
@@ -198,3 +197,15 @@ for i in range(config['episodes']):
             print(i, action_epsilon, step_count, culmulated_reward, lr_schedule.get_last_lr())
             lr_schedule.step()
             break
+
+# Save the trained policy and target network models, optimizer, and scheduler
+model_save_path = os.path.join(weights_save_path, "final_checkpoint.pth")
+torch.save({
+    'policy_network_state_dict': policy_network.state_dict(),
+    'target_network_state_dict': target_network.state_dict(),
+    'optimizer_state_dict': optimizer.state_dict(),
+    'lr_scheduler_state_dict': lr_schedule.state_dict(),
+    'config': config,
+    'step_count': step_count
+}, model_save_path)
+print(f"Model checkpoint saved to {model_save_path}")
