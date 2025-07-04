@@ -1,6 +1,6 @@
 type: dqn
 test_name: dqn
-episodes: 10
+episodes: 10000
 max_steps: 2000
 lr: 0.0001
 memory_capacity: 1000000
