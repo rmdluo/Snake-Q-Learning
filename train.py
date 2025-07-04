@@ -9,9 +9,15 @@ from replay_memory import ReplayMemory, Transition
 from snake_env import SnakeEnv
 from models.DQN import DQN
 
+# Command line arguments
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("config_file")
+args = parser.parse_args()
+
 # Config
 import yaml
-with open("cfgs/dqn.yaml", "r") as file:
+with open(args.config_file, "r") as file:
     config = yaml.safe_load(file)
 
 # Logging setup
@@ -27,7 +33,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 from pprint import pprint
 
 print("-" * 60)
-print("Using the following configuration:")
+print(f"Using the following configuration from {args.config_file}:")
 pprint(config)
 print("-" * 60)
 print(f"Saving run logs to: {run_save_path}")
