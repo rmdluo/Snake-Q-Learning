@@ -66,6 +66,8 @@ class DQNModel(Model):
             target_network_state_dict[key] = policy_network_state_dict[key]*config['soft_update_tau'] + target_network_state_dict[key]*(1-config['soft_update_tau'])
         self.target_network.load_state_dict(target_network_state_dict)
 
+        return loss.item()
+
     def save(self, model_save_path, optimizer, lr_schedule, config, step_count):
         torch.save({
             'policy_network_state_dict': self.policy_network.state_dict(),
