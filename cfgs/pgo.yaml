@@ -1,0 +1,9 @@
+type: pgo
+experiment_name: pgo
+epochs: 10000
+max_steps: 5000
+lr: 0.0001
+action_discount_factor: 0.99
+state_history_size: 1
+batch_size: 16
+logging_folder: logs
